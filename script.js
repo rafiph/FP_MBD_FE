@@ -117,6 +117,7 @@ function updateUserInterface() {
   const myAccountLink = document.getElementById("myAccountLink")
   const logoutLink = document.getElementById("logoutLink")
   const adminLink = document.getElementById("adminLink")
+  const dashboardLink = document.getElementById("dashboardLink")
 
   if (currentUser) {
     userStatus.textContent = `Welcome, ${currentUser.name}`
@@ -124,21 +125,23 @@ function updateUserInterface() {
     myAccountLink.style.display = "block"
     logoutLink.style.display = "block"
 
-    // Show admin link for admin users
+    // Show admin links for admin users
     if (currentUser.role === "admin") {
       adminLink.style.display = "block"
+      dashboardLink.style.display = "block"
     }
   } else {
     userStatus.style.display = "none"
     myAccountLink.style.display = "none"
     logoutLink.style.display = "none"
     adminLink.style.display = "none"
+    dashboardLink.style.display = "none"
   }
 }
 
 // Show different sections
 function showSection(sectionName) {
-  const sections = ["home", "about", "menu", "admin"]
+  const sections = ["home", "about", "menu", "admin", "adminDashboard"]
   sections.forEach((section) => {
     const element = document.getElementById(section)
     if (element) {
@@ -171,7 +174,8 @@ function closeModal(modalId) {
       modalId === "reservationListModal" ||
       modalId === "editReservationModal" ||
       modalId === "cancellationModal" ||
-      modalId === "rescheduleModal"
+      modalId === "rescheduleModal" ||
+      modalId === "rescheduleDetailsModal"
     ) {
       modal.remove()
     }
@@ -956,75 +960,1175 @@ function loadTableManagement() {
   container.innerHTML = html
 }
 
-// Reschedule functionality
-function rescheduleReservation() {
-  if (!currentUser) {
-    alert("Please login to reschedule reservations.")
-    showLogin()
+// Admin Dashboard Functions
+function showAdminDashboard() {
+  if (!currentUser || currentUser.role !== "admin") {
+    alert("Access denied. Admin privileges required.")
     return
   }
 
-  const userReservations = reservations.filter(
-    (r) => r.userId === currentUser.id && (r.status === "confirmed" || r.status === "pending"),
-  )
-
-  if (userReservations.length === 0) {
-    alert("You have no active reservations to reschedule.")
-    return
-  }
-
-  showRescheduleModal(userReservations)
+  showSection("adminDashboard")
+  loadDashboardStats()
+  showDashboardTab("overview")
 }
 
-function showRescheduleModal(userReservations) {
+function showDashboardTab(tabName) {
+  // Update tab buttons
+  document.querySelectorAll(".dashboard-tab-button").forEach((btn) => btn.classList.remove("active"))
+  document.querySelector(`[onclick="showDashboardTab('${tabName}')"]`).classList.add("active")
+
+  // Update tab content
+  document.querySelectorAll(".dashboard-tab-content").forEach((content) => content.classList.remove("active"))
+  document.getElementById(`dashboard${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Tab`).classList.add("active")
+
+  // Load content based on tab
+  switch (tabName) {
+    case "overview":
+      loadDashboardOverview()
+      break
+    case "customers":
+      loadCustomerManagement()
+      break
+    case "reports":
+      loadReportsSection()
+      break
+    case "settings":
+      loadSettingsSection()
+      break
+  }
+}
+
+function loadDashboardStats() {
+  // Calculate statistics
+  const totalReservationsCount = reservations.length
+  const totalRevenueAmount = reservations
+    .filter((r) => r.paymentStatus === "paid")
+    .reduce((sum, r) => sum + (r.totalAmount || 0), 0)
+  const pendingPaymentsCount = payments.filter((p) => p.status === "unpaid" && p.paymentProof).length
+  const totalCustomersCount = users.filter((u) => u.role === "customer").length
+
+  // Update stat cards
+  document.getElementById("totalReservations").textContent = totalReservationsCount
+  document.getElementById("totalRevenue").textContent = `$${totalRevenueAmount}`
+  document.getElementById("pendingPayments").textContent = pendingPaymentsCount
+  document.getElementById("totalCustomers").textContent = totalCustomersCount
+}
+
+function loadDashboardOverview() {
+  loadRecentReservations()
+  loadTableOccupancy()
+  loadRevenueTrend()
+}
+
+function loadRecentReservations() {
+  const container = document.getElementById("recentReservationsList")
+  const recentReservations = reservations.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5)
+
+  if (recentReservations.length === 0) {
+    container.innerHTML = '<p class="no-data-small">No recent reservations</p>'
+    return
+  }
+
+  let html = '<div class="recent-reservations">'
+  recentReservations.forEach((reservation) => {
+    const user = users.find((u) => u.id === reservation.userId)
+    const statusColor = getStatusColor(reservation.status)
+
+    html += `
+      <div class="recent-reservation-item">
+        <div class="reservation-info">
+          <strong>${user ? user.name : "Unknown"}</strong>
+          <span class="reservation-date">${formatDate(reservation.date)} ${formatTime(reservation.time)}</span>
+        </div>
+        <div class="reservation-meta">
+          <span class="table-info">${reservation.tableName}</span>
+          <span class="status-indicator" style="background: ${statusColor}">${reservation.status}</span>
+        </div>
+      </div>
+    `
+  })
+  html += "</div>"
+  container.innerHTML = html
+}
+
+function loadTableOccupancy() {
+  const container = document.getElementById("tableOccupancyChart")
+  const today = new Date().toISOString().split("T")[0]
+
+  let html = '<div class="table-occupancy-grid">'
+
+  tableData.forEach((table) => {
+    const todayReservations = reservations.filter(
+      (r) => r.tableId === table.id && r.date === today && (r.status === "confirmed" || r.status === "pending"),
+    )
+
+    const occupancyRate = (todayReservations.length / 9) * 100 // 9 time slots available
+    const occupancyClass = occupancyRate > 75 ? "high" : occupancyRate > 50 ? "medium" : "low"
+
+    html += `
+      <div class="table-occupancy-item">
+        <div class="table-name">${table.name}</div>
+        <div class="occupancy-bar">
+          <div class="occupancy-fill ${occupancyClass}" style="width: ${occupancyRate}%"></div>
+        </div>
+        <div class="occupancy-text">${Math.round(occupancyRate)}%</div>
+      </div>
+    `
+  })
+
+  html += "</div>"
+  container.innerHTML = html
+}
+
+function loadRevenueTrend() {
+  const container = document.getElementById("revenueTrendChart")
+  const last7Days = []
+
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date()
+    date.setDate(date.getDate() - i)
+    const dateStr = date.toISOString().split("T")[0]
+
+    const dayRevenue = reservations
+      .filter((r) => r.date === dateStr && r.paymentStatus === "paid")
+      .reduce((sum, r) => sum + (r.totalAmount || 0), 0)
+
+    last7Days.push({
+      date: dateStr,
+      revenue: dayRevenue,
+      day: date.toLocaleDateString("en-US", { weekday: "short" }),
+    })
+  }
+
+  const maxRevenue = Math.max(...last7Days.map((d) => d.revenue), 1)
+
+  let html = '<div class="revenue-chart">'
+  last7Days.forEach((day) => {
+    const height = (day.revenue / maxRevenue) * 100
+    html += `
+      <div class="revenue-bar-container">
+        <div class="revenue-bar" style="height: ${height}%"></div>
+        <div class="revenue-amount">$${day.revenue}</div>
+        <div class="revenue-day">${day.day}</div>
+      </div>
+    `
+  })
+  html += "</div>"
+  container.innerHTML = html
+}
+
+function loadCustomerManagement() {
+  const container = document.getElementById("customersList")
+  const customers = users.filter((u) => u.role === "customer")
+
+  if (customers.length === 0) {
+    container.innerHTML = '<p class="no-data">No customers found</p>'
+    return
+  }
+
+  let html = '<div class="customers-grid">'
+
+  customers.forEach((customer) => {
+    const customerReservations = reservations.filter((r) => r.userId === customer.id)
+    const totalSpent = customerReservations
+      .filter((r) => r.paymentStatus === "paid")
+      .reduce((sum, r) => sum + (r.totalAmount || 0), 0)
+
+    const customerType = totalSpent > 500 ? "VIP" : totalSpent > 200 ? "Regular" : "New"
+    const typeClass = customerType.toLowerCase()
+
+    html += `
+      <div class="customer-card">
+        <div class="customer-header">
+          <div class="customer-info">
+            <h5>${customer.name}</h5>
+            <p>${customer.email}</p>
+          </div>
+          <span class="customer-type ${typeClass}">${customerType}</span>
+        </div>
+        <div class="customer-stats">
+          <div class="customer-stat">
+            <span class="stat-label">Reservations</span>
+            <span class="stat-value">${customerReservations.length}</span>
+          </div>
+          <div class="customer-stat">
+            <span class="stat-label">Total Spent</span>
+            <span class="stat-value">$${totalSpent}</span>
+          </div>
+          <div class="customer-stat">
+            <span class="stat-label">Member Since</span>
+            <span class="stat-value">${formatDate(customer.createdAt.split("T")[0])}</span>
+          </div>
+        </div>
+        <div class="customer-actions">
+          <button class="btn btn-secondary btn-sm" onclick="viewCustomerDetails(${customer.id})">View Details</button>
+          <button class="btn btn-primary btn-sm" onclick="sendCustomerMessage(${customer.id})">Send Message</button>
+        </div>
+      </div>
+    `
+  })
+
+  html += "</div>"
+  container.innerHTML = html
+}
+
+function loadReportsSection() {
+  // Set default dates
+  const today = new Date()
+  const lastMonth = new Date()
+  lastMonth.setMonth(lastMonth.getMonth() - 1)
+
+  document.getElementById("reportStartDate").value = lastMonth.toISOString().split("T")[0]
+  document.getElementById("reportEndDate").value = today.toISOString().split("T")[0]
+}
+
+function loadSettingsSection() {
+  // Load current settings from localStorage or defaults
+  const settings = JSON.parse(localStorage.getItem("havenSettings") || "{}")
+
+  document.getElementById("restaurantName").value = settings.restaurantName || "Haven Restaurant"
+  document.getElementById("operatingHours").value = settings.operatingHours || "5:00 PM - 11:00 PM"
+  document.getElementById("maxAdvanceBooking").value = settings.maxAdvanceBooking || 30
+  document.getElementById("paymentTimeout").value = settings.paymentTimeout || 2
+  document.getElementById("cancellationPolicy").value =
+    settings.cancellationPolicy || "Cancellations must be made at least 24 hours in advance for full refund."
+  document.getElementById("emailNotifications").checked = settings.emailNotifications !== false
+  document.getElementById("smsNotifications").checked = settings.smsNotifications || false
+  document.getElementById("autoConfirmation").checked = settings.autoConfirmation !== false
+}
+
+// Dashboard Action Functions
+function exportReservations() {
+  const csvContent = generateReservationsCSV()
+  downloadCSV(csvContent, "reservations.csv")
+  alert("Reservations exported successfully!")
+}
+
+function generateReservationsCSV() {
+  const headers = [
+    "ID",
+    "Customer",
+    "Email",
+    "Date",
+    "Time",
+    "Table",
+    "Party Size",
+    "Status",
+    "Payment Status",
+    "Total Amount",
+    "Created At",
+  ]
+  let csv = headers.join(",") + "\n"
+
+  reservations.forEach((reservation) => {
+    const user = users.find((u) => u.id === reservation.userId)
+    const row = [
+      reservation.id,
+      user ? user.name : "Unknown",
+      user ? user.email : "N/A",
+      reservation.date,
+      reservation.time,
+      reservation.tableName,
+      reservation.tableCapacity,
+      reservation.status,
+      reservation.paymentStatus,
+      reservation.totalAmount || 0,
+      reservation.createdAt,
+    ]
+    csv += row.map((field) => `"${field}"`).join(",") + "\n"
+  })
+
+  return csv
+}
+
+function downloadCSV(content, filename) {
+  const blob = new Blob([content], { type: "text/csv" })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  a.click()
+  window.URL.revokeObjectURL(url)
+}
+
+function sendBulkNotifications() {
+  const message = prompt("Enter notification message:")
+  if (!message) return
+
+  const customers = users.filter((u) => u.role === "customer")
+  alert(`Notification sent to ${customers.length} customers: "${message}"`)
+}
+
+function generateReport() {
+  const reportData = {
+    totalReservations: reservations.length,
+    confirmedReservations: reservations.filter((r) => r.status === "confirmed").length,
+    totalRevenue: reservations
+      .filter((r) => r.paymentStatus === "paid")
+      .reduce((sum, r) => sum + (r.totalAmount || 0), 0),
+    averagePartySize: reservations.reduce((sum, r) => sum + (r.tableCapacity || 0), 0) / reservations.length || 0,
+    popularTables: getPopularTables(),
+    peakHours: getPeakHours(),
+  }
+
+  showReportModal(reportData)
+}
+
+function getPopularTables() {
+  const tableCounts = {}
+  reservations.forEach((r) => {
+    tableCounts[r.tableName] = (tableCounts[r.tableName] || 0) + 1
+  })
+
+  return Object.entries(tableCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3)
+    .map(([table, count]) => ({ table, count }))
+}
+
+function getPeakHours() {
+  const hourCounts = {}
+  reservations.forEach((r) => {
+    const hour = r.time.split(":")[0]
+    hourCounts[hour] = (hourCounts[hour] || 0) + 1
+  })
+
+  return Object.entries(hourCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3)
+    .map(([hour, count]) => ({ hour: `${hour}:00`, count }))
+}
+
+function showReportModal(reportData) {
+  const modal = document.createElement("div")
+  modal.className = "modal"
+  modal.id = "reportModal"
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal('reportModal')"></div>
+    <div class="modal-content large">
+      <div class="modal-header">
+        <h2>Restaurant Report</h2>
+        <button class="modal-close" onclick="closeModal('reportModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="report-summary">
+          <h4>Summary Statistics</h4>
+          <div class="report-stats-grid">
+            <div class="report-stat">
+              <span class="report-stat-label">Total Reservations</span>
+              <span class="report-stat-value">${reportData.totalReservations}</span>
+            </div>
+            <div class="report-stat">
+              <span class="report-stat-label">Confirmed Reservations</span>
+              <span class="report-stat-value">${reportData.confirmedReservations}</span>
+            </div>
+            <div class="report-stat">
+              <span class="report-stat-label">Total Revenue</span>
+              <span class="report-stat-value">$${reportData.totalRevenue}</span>
+            </div>
+            <div class="report-stat">
+              <span class="report-stat-label">Average Party Size</span>
+              <span class="report-stat-value">${reportData.averagePartySize.toFixed(1)}</span>
+            </div>
+          </div>
+          
+          <div class="report-section">
+            <h5>Popular Tables</h5>
+            <ul>
+              ${reportData.popularTables.map((t) => `<li>${t.table}: ${t.count} reservations</li>`).join("")}
+            </ul>
+          </div>
+          
+          <div class="report-section">
+            <h5>Peak Hours</h5>
+            <ul>
+              ${reportData.peakHours.map((h) => `<li>${h.hour}: ${h.count} reservations</li>`).join("")}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(modal)
+  modal.style.display = "block"
+}
+
+function generateCustomReport() {
+  const startDate = document.getElementById("reportStartDate").value
+  const endDate = document.getElementById("reportEndDate").value
+  const reportType = document.getElementById("reportType").value
+
+  if (!startDate || !endDate) {
+    alert("Please select both start and end dates")
+    return
+  }
+
+  const filteredReservations = reservations.filter((r) => r.date >= startDate && r.date <= endDate)
+
+  let reportHTML = ""
+
+  switch (reportType) {
+    case "revenue":
+      reportHTML = generateRevenueReport(filteredReservations)
+      break
+    case "reservations":
+      reportHTML = generateReservationsReport(filteredReservations)
+      break
+    case "customers":
+      reportHTML = generateCustomersReport(filteredReservations)
+      break
+    case "tables":
+      reportHTML = generateTablesReport(filteredReservations)
+      break
+  }
+
+  document.getElementById("reportResults").innerHTML = reportHTML
+}
+
+function generateRevenueReport(reservations) {
+  const totalRevenue = reservations
+    .filter((r) => r.paymentStatus === "paid")
+    .reduce((sum, r) => sum + (r.totalAmount || 0), 0)
+
+  const avgReservationValue = totalRevenue / reservations.length || 0
+
+  return `
+    <div class="report-results">
+      <h4>Revenue Report</h4>
+      <div class="report-metrics">
+        <div class="metric">
+          <span class="metric-label">Total Revenue</span>
+          <span class="metric-value">$${totalRevenue}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Average Reservation Value</span>
+          <span class="metric-value">$${avgReservationValue.toFixed(2)}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Paid Reservations</span>
+          <span class="metric-value">${reservations.filter((r) => r.paymentStatus === "paid").length}</span>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function generateReservationsReport(reservations) {
+  const statusCounts = {}
+  reservations.forEach((r) => {
+    statusCounts[r.status] = (statusCounts[r.status] || 0) + 1
+  })
+
+  return `
+    <div class="report-results">
+      <h4>Reservations Report</h4>
+      <div class="report-metrics">
+        <div class="metric">
+          <span class="metric-label">Total Reservations</span>
+          <span class="metric-value">${reservations.length}</span>
+        </div>
+        ${Object.entries(statusCounts)
+          .map(
+            ([status, count]) => `
+          <div class="metric">
+            <span class="metric-label">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+            <span class="metric-value">${count}</span>
+          </div>
+        `,
+          )
+          .join("")}
+      </div>
+    </div>
+  `
+}
+
+function generateCustomersReport(reservations) {
+  const uniqueCustomers = new Set(reservations.map((r) => r.userId)).size
+  const repeatCustomers = reservations.reduce((acc, r) => {
+    acc[r.userId] = (acc[r.userId] || 0) + 1
+    return acc
+  }, {})
+
+  const repeatCustomerCount = Object.values(repeatCustomers).filter((count) => count > 1).length
+
+  return `
+    <div class="report-results">
+      <h4>Customer Report</h4>
+      <div class="report-metrics">
+        <div class="metric">
+          <span class="metric-label">Unique Customers</span>
+          <span class="metric-value">${uniqueCustomers}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Repeat Customers</span>
+          <span class="metric-value">${repeatCustomerCount}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Customer Retention Rate</span>
+          <span class="metric-value">${((repeatCustomerCount / uniqueCustomers) * 100).toFixed(1)}%</span>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+function generateTablesReport(reservations) {
+  const tableUtilization = {}
+  reservations.forEach((r) => {
+    tableUtilization[r.tableName] = (tableUtilization[r.tableName] || 0) + 1
+  })
+
+  return `
+    <div class="report-results">
+      <h4>Table Utilization Report</h4>
+      <div class="table-utilization-list">
+        ${Object.entries(tableUtilization)
+          .sort(([, a], [, b]) => b - a)
+          .map(
+            ([table, count]) => `
+            <div class="utilization-item">
+              <span class="table-name">${table}</span>
+              <span class="utilization-count">${count} reservations</span>
+            </div>
+          `,
+          )
+          .join("")}
+      </div>
+    </div>
+  `
+}
+
+function filterCustomers() {
+  const searchTerm = document.getElementById("customerSearch").value.toLowerCase()
+  const filterType = document.getElementById("customerFilter").value
+
+  let filteredCustomers = users.filter((u) => u.role === "customer")
+
+  if (searchTerm) {
+    filteredCustomers = filteredCustomers.filter(
+      (c) => c.name.toLowerCase().includes(searchTerm) || c.email.toLowerCase().includes(searchTerm),
+    )
+  }
+
+  if (filterType !== "all") {
+    filteredCustomers = filteredCustomers.filter((customer) => {
+      const customerReservations = reservations.filter((r) => r.userId === customer.id)
+      const totalSpent = customerReservations
+        .filter((r) => r.paymentStatus === "paid")
+        .reduce((sum, r) => sum + (r.totalAmount || 0), 0)
+
+      switch (filterType) {
+        case "vip":
+          return totalSpent > 500
+        case "active":
+          return customerReservations.length > 0
+        case "new":
+          return customerReservations.length === 0
+        default:
+          return true
+      }
+    })
+  }
+
+  // Re-render customer list with filtered results
+  renderFilteredCustomers(filteredCustomers)
+}
+
+function renderFilteredCustomers(customers) {
+  const container = document.getElementById("customersList")
+
+  if (customers.length === 0) {
+    container.innerHTML = '<p class="no-data">No customers found matching the criteria</p>'
+    return
+  }
+
+  let html = '<div class="customers-grid">'
+
+  customers.forEach((customer) => {
+    const customerReservations = reservations.filter((r) => r.userId === customer.id)
+    const totalSpent = customerReservations
+      .filter((r) => r.paymentStatus === "paid")
+      .reduce((sum, r) => sum + (r.totalAmount || 0), 0)
+
+    const customerType = totalSpent > 500 ? "VIP" : totalSpent > 200 ? "Regular" : "New"
+    const typeClass = customerType.toLowerCase()
+
+    html += `
+      <div class="customer-card">
+        <div class="customer-header">
+          <div class="customer-info">
+            <h5>${customer.name}</h5>
+            <p>${customer.email}</p>
+          </div>
+          <span class="customer-type ${typeClass}">${customerType}</span>
+        </div>
+        <div class="customer-stats">
+          <div class="customer-stat">
+            <span class="stat-label">Reservations</span>
+            <span class="stat-value">${customerReservations.length}</span>
+          </div>
+          <div class="customer-stat">
+            <span class="stat-label">Total Spent</span>
+            <span class="stat-value">$${totalSpent}</span>
+          </div>
+          <div class="customer-stat">
+            <span class="stat-label">Member Since</span>
+            <span class="stat-value">${formatDate(customer.createdAt.split("T")[0])}</span>
+          </div>
+        </div>
+        <div class="customer-actions">
+          <button class="btn btn-secondary btn-sm" onclick="viewCustomerDetails(${customer.id})">View Details</button>
+          <button class="btn btn-primary btn-sm" onclick="sendCustomerMessage(${customer.id})">Send Message</button>
+        </div>
+      </div>
+    `
+  })
+
+  html += "</div>"
+  container.innerHTML = html
+}
+
+function viewCustomerDetails(customerId) {
+  const customer = users.find((u) => u.id === customerId)
+  const customerReservations = reservations.filter((r) => r.userId === customerId)
+
+  if (!customer) {
+    alert("Customer not found")
+    return
+  }
+
+  const modal = document.createElement("div")
+  modal.className = "modal"
+  modal.id = "customerDetailsModal"
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal('customerDetailsModal')"></div>
+    <div class="modal-content large">
+      <div class="modal-header">
+        <h2>Customer Details: ${customer.name}</h2>
+        <button class="modal-close" onclick="closeModal('customerDetailsModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="customer-details">
+          <div class="customer-info-section">
+            <h4>Contact Information</h4>
+            <p><strong>Email:</strong> ${customer.email}</p>
+            <p><strong>Phone:</strong> ${customer.phone}</p>
+            <p><strong>Member Since:</strong> ${formatDateTime(customer.createdAt)}</p>
+          </div>
+          
+          <div class="customer-reservations-section">
+            <h4>Reservation History (${customerReservations.length} total)</h4>
+            <div class="customer-reservations-list">
+              ${
+                customerReservations.length === 0
+                  ? '<p class="no-data-small">No reservations found</p>'
+                  : customerReservations
+                      .slice(0, 10)
+                      .map(
+                        (reservation) => `
+                  <div class="customer-reservation-item">
+                    <div class="reservation-date">${formatDate(reservation.date)} ${formatTime(reservation.time)}</div>
+                    <div class="reservation-details">
+                      <span>${reservation.tableName}</span>
+                      <span class="status-badge ${reservation.status}">${reservation.status}</span>
+                      <span class="amount">$${reservation.totalAmount}</span>
+                    </div>
+                  </div>
+                `,
+                      )
+                      .join("")
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(modal)
+  modal.style.display = "block"
+}
+
+function sendCustomerMessage(customerId) {
+  const customer = users.find((u) => u.id === customerId)
+  if (!customer) {
+    alert("Customer not found")
+    return
+  }
+
+  const message = prompt(`Send message to ${customer.name}:`)
+  if (message) {
+    alert(`Message sent to ${customer.name}: "${message}"`)
+  }
+}
+
+function saveSettings() {
+  const settings = {
+    restaurantName: document.getElementById("restaurantName").value,
+    operatingHours: document.getElementById("operatingHours").value,
+    maxAdvanceBooking: Number.parseInt(document.getElementById("maxAdvanceBooking").value),
+    paymentTimeout: Number.parseInt(document.getElementById("paymentTimeout").value),
+    cancellationPolicy: document.getElementById("cancellationPolicy").value,
+    emailNotifications: document.getElementById("emailNotifications").checked,
+    smsNotifications: document.getElementById("smsNotifications").checked,
+    autoConfirmation: document.getElementById("autoConfirmation").checked,
+  }
+
+  localStorage.setItem("havenSettings", JSON.stringify(settings))
+  alert("Settings saved successfully!")
+}
+
+function resetSettings() {
+  if (confirm("Are you sure you want to reset all settings to default?")) {
+    localStorage.removeItem("havenSettings")
+    loadSettingsSection()
+    alert("Settings reset to default values")
+  }
+}
+
+// Helper functions
+function formatDateFunc(dateString) {
+  const date = new Date(dateString)
+  const options = { year: "numeric", month: "long", day: "numeric" }
+  return date.toLocaleDateString("en-US", options)
+}
+
+function formatTimeFunc(timeString) {
+  const [hours, minutes] = timeString.split(":")
+  const period = hours >= 12 ? "PM" : "AM"
+  const formattedHours = hours % 12 === 0 ? 12 : hours % 12
+  return `${formattedHours}:${minutes} ${period}`
+}
+
+function formatDateTimeFunc(dateTimeString) {
+  const date = new Date(dateTimeString)
+  const options = {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  }
+  return date.toLocaleString("en-US", options)
+}
+
+function getStatusColorFunc(status) {
+  switch (status) {
+    case "pending":
+      return "#ffc107" // Yellow
+    case "confirmed":
+      return "#28a745" // Green
+    case "cancelled":
+      return "#dc3545" // Red
+    case "expired":
+      return "#6c757d" // Gray
+    default:
+      return "#007bff" // Blue
+  }
+}
+
+function handleModalClickFunc(event) {
+  if (event.target.classList.contains("modal-overlay")) {
+    const modalId = event.target.parentNode.id
+    closeModal(modalId)
+  }
+}
+
+function viewFullImageFunc(imageSrc) {
+  const modal = document.createElement("div")
+  modal.className = "modal"
+  modal.id = "imageModal"
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal('imageModal')"></div>
+    <div class="modal-content image-content">
+      <img src="${imageSrc}" alt="Full Image">
+      <button class="modal-close" onclick="closeModal('imageModal')">&times;</button>
+    </div>
+  `
+  document.body.appendChild(modal)
+  modal.style.display = "block"
+}
+
+function adminCancelReservationFunc(reservationId) {
+  if (!confirm("Are you sure you want to cancel this reservation?")) {
+    return
+  }
+
+  const reservation = reservations.find((r) => r.id === reservationId)
+  if (reservation) {
+    reservation.status = "cancelled"
+    reservation.paymentStatus = "refunded"
+
+    // Update payment status
+    const payment = payments.find((p) => p.reservationId === reservation.id)
+    if (payment) {
+      payment.status = "refunded"
+    }
+
+    localStorage.setItem("havenReservations", JSON.stringify(reservations))
+    localStorage.setItem("havenPayments", JSON.stringify(payments))
+
+    alert("Reservation cancelled successfully!")
+    loadAllReservations()
+  }
+}
+
+function viewReservationDetailsFunc(reservationId) {
+  const reservation = reservations.find((r) => r.id === reservationId)
+
+  if (!reservation) {
+    alert("Reservation not found")
+    return
+  }
+
+  const modal = document.createElement("div")
+  modal.className = "modal"
+  modal.id = "reservationListModal"
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal('reservationListModal')"></div>
+    <div class="modal-content large">
+      <div class="modal-header">
+        <h2>Reservation Details #${reservation.id}</h2>
+        <button class="modal-close" onclick="closeModal('reservationListModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="reservation-details">
+          <div class="detail-row">
+            <span>Customer:</span>
+            <span>${reservation.userName} (${reservation.userEmail})</span>
+          </div>
+          <div class="detail-row">
+            <span>Date & Time:</span>
+            <span>${formatDateFunc(reservation.date)} at ${formatTimeFunc(reservation.time)}</span>
+          </div>
+          <div class="detail-row">
+            <span>Table:</span>
+            <span>${reservation.tableName} (${reservation.tableCapacity} seats)</span>
+          </div>
+          <div class="detail-row">
+            <span>Total Amount:</span>
+            <span>$${reservation.totalAmount}</span>
+          </div>
+          <div class="detail-row">
+            <span>Status:</span>
+            <span class="status-badge ${reservation.status}">${reservation.status}</span>
+          </div>
+          <div class="detail-row">
+            <span>Payment Status:</span>
+            <span class="payment-badge ${reservation.paymentStatus}">${reservation.paymentStatus}</span>
+          </div>
+          <div class="detail-row">
+            <span>Special Requests:</span>
+            <span>${reservation.specialRequests || "N/A"}</span>
+          </div>
+          <div class="detail-row">
+            <span>Menu Items:</span>
+            <ul>
+              ${reservation.menuItems.map((item) => `<li>${item.name} ($${item.price})</li>`).join("")}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(modal)
+  modal.style.display = "block"
+}
+
+function selectReservationToRescheduleFunc(reservationId) {
+  const reservation = reservations.find((r) => r.id === reservationId)
+
+  if (!reservation) {
+    alert("Reservation not found")
+    return
+  }
+
   const modal = document.createElement("div")
   modal.className = "modal"
   modal.id = "rescheduleModal"
   modal.innerHTML = `
     <div class="modal-overlay" onclick="closeModal('rescheduleModal')"></div>
-    <div class="modal-content large">
+    <div class="modal-content">
       <div class="modal-header">
-        <h2>Reschedule Reservation</h2>
-        <p class="modal-subtitle">Select a reservation to reschedule (must be at least 1 day before original date)</p>
+        <h2>Reschedule Reservation #${reservation.id}</h2>
         <button class="modal-close" onclick="closeModal('rescheduleModal')">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="reschedule-list">
-          ${userReservations
-            .filter((reservation) => {
-              const reservationDate = new Date(reservation.date)
-              const tomorrow = new Date()
-              tomorrow.setDate(tomorrow.getDate() + 1)
-              return reservationDate > tomorrow
-            })
-            .map(
-              (reservation) => `
-              <div class="reschedule-card" onclick="selectReservationToReschedule(${reservation.id})">
-                <div class="reservation-header">
-                  <span class="reservation-id">Reservation #${reservation.id}</span>
-                  <span class="reservation-status ${reservation.status}">${reservation.status.toUpperCase()}</span>
-                </div>
-                <div class="reservation-details">
-                  <div class="detail-row">
-                    <span class="detail-label">Current Date:</span>
-                    <span class="detail-value">${formatDate(reservation.date)}</span>
-                  </div>
-                  <div class="detail-row">
-                    <span class="detail-label">Current Time:</span>
-                    <span class="detail-value">${formatTime(reservation.time)}</span>
-                  </div>
-                  <div class="detail-row">
-                    <span class="detail-label">Table:</span>
-                    <span class="detail-value">${reservation.tableName}</span>
-                  </div>
-                </div>
-                <div class="reschedule-indicator">
-                  <span>Click to reschedule →</span>
-                </div>
-              </div>
-            `,
-            )
-            .join("")}
+        <p>Are you sure you want to reschedule this reservation?</p>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="showRescheduleDetailsFunc(${reservation.id})">Yes, Reschedule</button>
+          <button class="btn btn-secondary" onclick="closeModal('rescheduleModal')">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(modal)
+  modal.style.display = "block"
+}
+
+function showRescheduleDetailsFunc(reservationId) {
+  closeModal("rescheduleModal")
+
+  const reservation = reservations.find((r) => r.id === reservationId)
+
+  if (!reservation) {
+    alert("Reservation not found")
+    return
+  }
+
+  const modal = document.createElement("div")
+  modal.className = "modal"
+  modal.id = "rescheduleDetailsModal"
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal('rescheduleDetailsModal')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Enter New Details for Reservation #${reservation.id}</h2>
+        <button class="modal-close" onclick="closeModal('rescheduleDetailsModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="rescheduleForm">
+          <div class="form-group">
+            <label for="rescheduleDate">New Date:</label>
+            <input type="date" id="rescheduleDate" name="rescheduleDate" min="${new Date().toISOString().split("T")[0]}" required>
+          </div>
+          <div class="form-group">
+            <label for="rescheduleTime">New Time:</label>
+            <input type="time" id="rescheduleTime" name="rescheduleTime" required>
+          </div>
+        </form>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="confirmRescheduleFunc(${reservation.id})">Confirm Reschedule</button>
+          <button class="btn btn-secondary" onclick="closeModal('rescheduleDetailsModal')">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(modal)
+  modal.style.display = "block"
+}
+
+function confirmRescheduleFunc(reservationId) {
+  const newDate = document.getElementById("rescheduleDate").value
+  const newTime = document.getElementById("rescheduleTime").value
+
+  if (!newDate || !newTime) {
+    alert("Please select both a new date and time.")
+    return
+  }
+
+  const reservation = reservations.find((r) => r.id === reservationId)
+
+  if (!reservation) {
+    alert("Reservation not found")
+    return
+  }
+
+  // Check table availability
+  const isTableAvailable = checkTableAvailability(reservation.tableId, newDate, newTime)
+  if (!isTableAvailable) {
+    alert("Selected table is not available at this time. Please choose a different time or table.")
+    return
+  }
+
+  reservation.date = newDate
+  reservation.time = newTime
+  reservation.status = "confirmed" // Or keep the original status?
+
+  localStorage.setItem("havenReservations", JSON.stringify(reservations))
+  closeModal("rescheduleDetailsModal")
+  alert("Reservation rescheduled successfully!")
+  loadAllReservations()
+}
+
+// Export functions for global access
+window.showSection = showSection
+window.makeReservation = makeReservation
+window.viewReservations = viewReservations
+window.editReservation = editReservation
+window.rescheduleReservation = rescheduleReservation
+window.showSignIn = showSignIn
+window.showLogin = showLogin
+window.showMyAccount = showMyAccount
+window.showAdminPanel = showAdminPanel
+window.showAdminTab = showAdminTab
+window.logout = logout
+window.closeModal = closeModal
+window.selectTable = selectTable
+window.proceedToTableSelection = proceedToTableSelection
+window.proceedToReservationDetails = proceedToReservationDetails
+window.toggleMenuItem = toggleMenuItem
+window.approvePayment = approvePayment
+window.rejectPayment = rejectPayment
+window.viewFullImage = viewFullImage
+window.adminCancelReservation = adminCancelReservation
+window.viewReservationDetails = viewReservationDetails
+window.selectReservationToReschedule = selectReservationToReschedule
+window.showRescheduleDetails = showRescheduleDetails
+window.confirmReschedule = confirmReschedule
+
+// Export new functions for global access
+window.showAdminDashboard = showAdminDashboard
+window.showDashboardTab = showDashboardTab
+window.exportReservations = exportReservations
+window.sendBulkNotifications = sendBulkNotifications
+window.generateReport = generateReport
+window.generateCustomReport = generateCustomReport
+window.filterCustomers = filterCustomers
+window.viewCustomerDetails = viewCustomerDetails
+window.sendCustomerMessage = sendCustomerMessage
+window.saveSettings = saveSettings
+window.resetSettings = resetSettings
+
+// Helper functions
+function formatDate(dateString) {
+  const date = new Date(dateString)
+  const options = { year: "numeric", month: "long", day: "numeric" }
+  return date.toLocaleDateString("en-US", options)
+}
+
+function formatTime(timeString) {
+  const [hours, minutes] = timeString.split(":")
+  const period = hours >= 12 ? "PM" : "AM"
+  const formattedHours = hours % 12 === 0 ? 12 : hours % 12
+  return `${formattedHours}:${minutes} ${period}`
+}
+
+function formatDateTime(dateTimeString) {
+  const date = new Date(dateTimeString)
+  const options = {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  }
+  return date.toLocaleString("en-US", options)
+}
+
+function getStatusColor(status) {
+  switch (status) {
+    case "pending":
+      return "#ffc107" // Yellow
+    case "confirmed":
+      return "#28a745" // Green
+    case "cancelled":
+      return "#dc3545" // Red
+    case "expired":
+      return "#6c757d" // Gray
+    default:
+      return "#007bff" // Blue
+  }
+}
+
+function handleModalClick(event) {
+  if (event.target.classList.contains("modal-overlay")) {
+    const modalId = event.target.parentNode.id
+    closeModal(modalId)
+  }
+}
+
+function viewFullImage(imageSrc) {
+  const modal = document.createElement("div")
+  modal.className = "modal"
+  modal.id = "imageModal"
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal('imageModal')"></div>
+    <div class="modal-content image-content">
+      <img src="${imageSrc}" alt="Full Image">
+      <button class="modal-close" onclick="closeModal('imageModal')">&times;</button>
+    </div>
+  `
+  document.body.appendChild(modal)
+  modal.style.display = "block"
+}
+
+function adminCancelReservation(reservationId) {
+  if (!confirm("Are you sure you want to cancel this reservation?")) {
+    return
+  }
+
+  const reservation = reservations.find((r) => r.id === reservationId)
+  if (reservation) {
+    reservation.status = "cancelled"
+    reservation.paymentStatus = "refunded"
+
+    // Update payment status
+    const payment = payments.find((p) => p.reservationId === reservation.id)
+    if (payment) {
+      payment.status = "refunded"
+    }
+
+    localStorage.setItem("havenReservations", JSON.stringify(reservations))
+    localStorage.setItem("havenPayments", JSON.stringify(payments))
+
+    alert("Reservation cancelled successfully!")
+    loadAllReservations()
+  }
+}
+
+function viewReservationDetails(reservationId) {
+  const reservation = reservations.find((r) => r.id === reservationId)
+
+  if (!reservation) {
+    alert("Reservation not found")
+    return
+  }
+
+  const modal = document.createElement("div")
+  modal.className = "modal"
+  modal.id = "reservationListModal"
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal('reservationListModal')"></div>
+    <div class="modal-content large">
+      <div class="modal-header">
+        <h2>Reservation Details #${reservation.id}</h2>
+        <button class="modal-close" onclick="closeModal('reservationListModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="reservation-details">
+          <div class="detail-row">
+            <span>Customer:</span>
+            <span>${reservation.userName} (${reservation.userEmail})</span>
+          </div>
+          <div class="detail-row">
+            <span>Date & Time:</span>
+            <span>${formatDate(reservation.date)} at ${formatTime(reservation.time)}</span>
+          </div>
+          <div class="detail-row">
+            <span>Table:</span>
+            <span>${reservation.tableName} (${reservation.tableCapacity} seats)</span>
+          </div>
+          <div class="detail-row">
+            <span>Total Amount:</span>
+            <span>$${reservation.totalAmount}</span>
+          </div>
+          <div class="detail-row">
+            <span>Status:</span>
+            <span class="status-badge ${reservation.status}">${reservation.status}</span>
+          </div>
+          <div class="detail-row">
+            <span>Payment Status:</span>
+            <span class="payment-badge ${reservation.paymentStatus}">${reservation.paymentStatus}</span>
+          </div>
+          <div class="detail-row">
+            <span>Special Requests:</span>
+            <span>${reservation.specialRequests || "N/A"}</span>
+          </div>
+          <div class="detail-row">
+            <span>Menu Items:</span>
+            <ul>
+              ${reservation.menuItems.map((item) => `<li>${item.name} ($${item.price})</li>`).join("")}
+            </ul>
+          </div>
         </div>
       </div>
     </div>
@@ -1035,238 +2139,223 @@ function showRescheduleModal(userReservations) {
 }
 
 function selectReservationToReschedule(reservationId) {
-  closeModal("rescheduleModal")
-
   const reservation = reservations.find((r) => r.id === reservationId)
+
   if (!reservation) {
-    alert("Reservation not found.")
+    alert("Reservation not found")
     return
   }
 
-  showRescheduleDetailsModal(reservation)
-}
-
-function showRescheduleDetailsModal(reservation) {
   const modal = document.createElement("div")
   modal.className = "modal"
-  modal.id = "rescheduleDetailsModal"
+  modal.id = "rescheduleModal"
   modal.innerHTML = `
-    <div class="modal-overlay" onclick="closeModal('rescheduleDetailsModal')"></div>
-    <div class="modal-content large">
+    <div class="modal-overlay" onclick="closeModal('rescheduleModal')"></div>
+    <div class="modal-content">
       <div class="modal-header">
         <h2>Reschedule Reservation #${reservation.id}</h2>
-        <button class="modal-close" onclick="closeModal('rescheduleDetailsModal')">&times;</button>
+        <button class="modal-close" onclick="closeModal('rescheduleModal')">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="current-reservation">
-          <h4>Current Reservation:</h4>
-          <p><strong>Date:</strong> ${formatDate(reservation.date)}</p>
-          <p><strong>Time:</strong> ${formatTime(reservation.time)}</p>
-          <p><strong>Table:</strong> ${reservation.tableName}</p>
+        <p>Are you sure you want to reschedule this reservation?</p>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="showRescheduleDetails(${reservation.id})">Yes, Reschedule</button>
+          <button class="btn btn-secondary" onclick="closeModal('rescheduleModal')">Cancel</button>
         </div>
-        
-        <form id="rescheduleForm">
-          <h4>New Date & Time:</h4>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="newDate">New Date</label>
-              <input type="date" id="newDate" required class="form-input">
-            </div>
-            <div class="form-group">
-              <label for="newTime">New Time</label>
-              <select id="newTime" required class="form-input">
-                <option value="">Select Time</option>
-                <option value="17:00">5:00 PM</option>
-                <option value="17:30">5:30 PM</option>
-                <option value="18:00">6:00 PM</option>
-                <option value="18:30">6:30 PM</option>
-                <option value="19:00">7:00 PM</option>
-                <option value="19:30">7:30 PM</option>
-                <option value="20:00">8:00 PM</option>
-                <option value="20:30">8:30 PM</option>
-                <option value="21:00">9:00 PM</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="closeModal('rescheduleDetailsModal')">Cancel</button>
-            <button type="submit" class="btn btn-primary">Confirm Reschedule</button>
-          </div>
-        </form>
       </div>
     </div>
   `
 
   document.body.appendChild(modal)
   modal.style.display = "block"
-
-  // Set minimum date to today
-  const today = new Date().toISOString().split("T")[0]
-  document.getElementById("newDate").min = today
-
-  // Handle form submission
-  document.getElementById("rescheduleForm").addEventListener("submit", (e) => {
-    e.preventDefault()
-    handleReschedule(reservation.id)
-  })
 }
 
-function handleReschedule(reservationId) {
-  const newDate = document.getElementById("newDate").value
-  const newTime = document.getElementById("newTime").value
+function showRescheduleDetails(reservationId) {
+  closeModal("rescheduleModal")
+
+  const reservation = reservations.find((r) => r.id === reservationId)
+
+  if (!reservation) {
+    alert("Reservation not found")
+    return
+  }
+
+  const modal = document.createElement("div")
+  modal.className = "modal"
+  modal.id = "rescheduleDetailsModal"
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal('rescheduleDetailsModal')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Enter New Details for Reservation #${reservation.id}</h2>
+        <button class="modal-close" onclick="closeModal('rescheduleDetailsModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="rescheduleForm">
+          <div class="form-group">
+            <label for="rescheduleDate">New Date:</label>
+            <input type="date" id="rescheduleDate" name="rescheduleDate" min="${new Date().toISOString().split("T")[0]}" required>
+          </div>
+          <div class="form-group">
+            <label for="rescheduleTime">New Time:</label>
+            <input type="time" id="rescheduleTime" name="rescheduleTime" required>
+          </div>
+        </form>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="confirmReschedule(${reservation.id})">Confirm Reschedule</button>
+          <button class="btn btn-secondary" onclick="closeModal('rescheduleDetailsModal')">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(modal)
+  modal.style.display = "block"
+}
+
+function confirmReschedule(reservationId) {
+  const newDate = document.getElementById("rescheduleDate").value
+  const newTime = document.getElementById("rescheduleTime").value
 
   if (!newDate || !newTime) {
-    alert("Please fill in all fields.")
+    alert("Please select both a new date and time.")
     return
   }
 
   const reservation = reservations.find((r) => r.id === reservationId)
+
   if (!reservation) {
-    alert("Reservation not found.")
+    alert("Reservation not found")
     return
   }
 
-  // Check if new date is at least tomorrow
-  const selectedDate = new Date(newDate)
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  tomorrow.setHours(0, 0, 0, 0)
-
-  if (selectedDate < tomorrow) {
-    alert("Please select a date that is at least 1 day from today.")
+  // Check table availability
+  const isTableAvailable = checkTableAvailability(reservation.tableId, newDate, newTime)
+  if (!isTableAvailable) {
+    alert("Selected table is not available at this time. Please choose a different time or table.")
     return
   }
 
-  // Check table availability for new date/time
-  const isAvailable = checkTableAvailability(reservation.tableId, newDate, newTime)
-  if (!isAvailable) {
-    alert("The table is not available at the selected time. Please choose a different time.")
-    return
-  }
-
-  // Update reservation
-  const reservationIndex = reservations.findIndex((r) => r.id === reservationId)
-  reservations[reservationIndex] = {
-    ...reservation,
-    date: newDate,
-    time: newTime,
-    rescheduledAt: new Date().toISOString(),
-    rescheduledBy: currentUser.id,
-  }
+  reservation.date = newDate
+  reservation.time = newTime
+  reservation.status = "confirmed" // Or keep the original status?
 
   localStorage.setItem("havenReservations", JSON.stringify(reservations))
-
   closeModal("rescheduleDetailsModal")
-  alert(`Reservation successfully rescheduled to ${formatDate(newDate)} at ${formatTime(newTime)}`)
+  alert("Reservation rescheduled successfully!")
+  loadAllReservations()
 }
 
-// View user reservations
-function viewReservations() {
-  if (!currentUser) {
-    alert("Please login to view your reservations.")
-    showLogin()
-    return
+// Export new functions for global access
+window.showAdminDashboard = showAdminDashboard
+window.showDashboardTab = showDashboardTab
+window.exportReservations = exportReservations
+window.sendBulkNotifications = sendBulkNotifications
+window.generateReport = generateReport
+window.generateCustomReport = generateCustomReport
+window.filterCustomers = filterCustomers
+window.viewCustomerDetails = viewCustomerDetails
+window.sendCustomerMessage = sendCustomerMessage
+window.saveSettings = saveSettings
+window.resetSettings = resetSettings
+
+// Helper functions
+function formatDate(dateString) {
+  const date = new Date(dateString)
+  const options = { year: "numeric", month: "long", day: "numeric" }
+  return date.toLocaleDateString("en-US", options)
+}
+
+function formatTime(timeString) {
+  const [hours, minutes] = timeString.split(":")
+  const period = hours >= 12 ? "PM" : "AM"
+  const formattedHours = hours % 12 === 0 ? 12 : hours % 12
+  return `${formattedHours}:${minutes} ${period}`
+}
+
+function formatDateTime(dateTimeString) {
+  const date = new Date(dateTimeString)
+  const options = {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
   }
-
-  const userReservations = reservations.filter((r) => r.userId === currentUser.id)
-
-  if (userReservations.length === 0) {
-    alert("You have no reservations yet. Would you like to make one?")
-    return
-  }
-
-  let reservationList = "<h3>Your Reservations:</h3>"
-  userReservations.forEach((reservation) => {
-    const payment = payments.find((p) => p.reservationId === reservation.id)
-    const menuItemsHtml = reservation.menuItems
-      ? `<div class="reservation-menu-items">
-        <strong>Selected Menu:</strong>
-        <ul class="menu-items-list">
-          ${reservation.menuItems.map((item) => `<li>${item.name} - $${item.price}</li>`).join("")}
-        </ul>
-        <div class="food-total"><strong>Food Total: $${reservation.foodTotal || 0}</strong></div>
-      </div>`
-      : ""
-
-    const statusClass = reservation.status === "cancelled" ? "cancelled" : reservation.status
-    const statusColor = getStatusColor(reservation.status)
-    const paymentStatusColor = getStatusColor(reservation.paymentStatus)
-
-    reservationList += `
-      <div style="border: 1px solid #e5e7eb; padding: 1rem; margin: 1rem 0; border-radius: 5px; background: #f8fafc; ${reservation.status === "cancelled" ? "opacity: 0.7;" : ""}">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-          <strong style="color: #1e40af;">Reservation #${reservation.id}</strong>
-          <div>
-            <span style="background: ${statusColor}; color: white; padding: 0.25rem 0.5rem; border-radius: 3px; font-size: 0.8rem; margin-right: 0.5rem;">${reservation.status.toUpperCase()}</span>
-            <span style="background: ${paymentStatusColor}; color: white; padding: 0.25rem 0.5rem; border-radius: 3px; font-size: 0.8rem;">${reservation.paymentStatus.toUpperCase()}</span>
-          </div>
-        </div>
-        <strong>Date:</strong> ${formatDate(reservation.date)}<br>
-        <strong>Time:</strong> ${formatTime(reservation.time)}<br>
-        <strong>Table:</strong> ${reservation.tableName} (${reservation.tableCapacity} seats)<br>
-        <strong>Total Amount:</strong> $${reservation.totalAmount}<br>
-        ${menuItemsHtml}
-        ${reservation.specialRequests ? `<strong>Special Requests:</strong> ${reservation.specialRequests}<br>` : ""}
-        ${
-          payment && payment.expiryTime && reservation.paymentStatus === "unpaid"
-            ? `<div style="color: #f59e0b; font-weight: 500; margin-top: 0.5rem;">
-            <strong>Payment Deadline:</strong> ${formatDateTime(payment.expiryTime)}
-          </div>`
-            : ""
-        }
-        ${
-          reservation.status === "cancelled"
-            ? `<div style="color: #ef4444; font-weight: 500; margin-top: 0.5rem;">
-          <strong>Cancelled on:</strong> ${formatDateTime(reservation.cancelledAt)}<br>
-          ${reservation.cancellationReason ? `<strong>Reason:</strong> ${reservation.cancellationReason}<br>` : ""}
-        </div>`
-            : ""
-        }
-        <small style="color: #6b7280;">Booked on: ${formatDateTime(reservation.createdAt)}</small>
-      </div>
-    `
-  })
-
-  document.getElementById("userReservations").innerHTML = reservationList
-  document.getElementById("myAccountModal").style.display = "block"
+  return date.toLocaleString("en-US", options)
 }
 
 function getStatusColor(status) {
   switch (status) {
-    case "confirmed":
-    case "paid":
-      return "#10b981"
     case "pending":
-    case "unpaid":
-      return "#f59e0b"
+      return "#ffc107" // Yellow
+    case "confirmed":
+      return "#28a745" // Green
     case "cancelled":
+      return "#dc3545" // Red
     case "expired":
-      return "#ef4444"
+      return "#6c757d" // Gray
     default:
-      return "#6b7280"
+      return "#007bff" // Blue
   }
 }
 
-// Edit reservation function - now fully functional
-function editReservation() {
-  if (!currentUser) {
-    alert("Please login to edit your reservations.")
-    showLogin()
-    return
+function handleModalClick(event) {
+  if (event.target.classList.contains("modal-overlay")) {
+    const modalId = event.target.parentNode.id
+    closeModal(modalId)
   }
-
-  const userReservations = reservations.filter((r) => r.userId === currentUser.id && r.status !== "cancelled")
-
-  if (userReservations.length === 0) {
-    alert("You have no active reservations to edit.")
-    return
-  }
-
-  showReservationListModal(userReservations)
 }
 
-// Show list of reservations to edit
-function showReservationListModal(userReservations) {
+function viewFullImage(imageSrc) {
+  const modal = document.createElement("div")
+  modal.className = "modal"
+  modal.id = "imageModal"
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal('imageModal')"></div>
+    <div class="modal-content image-content">
+      <img src="${imageSrc}" alt="Full Image">
+      <button class="modal-close" onclick="closeModal('imageModal')">&times;</button>
+    </div>
+  `
+  document.body.appendChild(modal)
+  modal.style.display = "block"
+}
+
+function adminCancelReservation(reservationId) {
+  if (!confirm("Are you sure you want to cancel this reservation?")) {
+    return
+  }
+
+  const reservation = reservations.find((r) => r.id === reservationId)
+  if (reservation) {
+    reservation.status = "cancelled"
+    reservation.paymentStatus = "refunded"
+
+    // Update payment status
+    const payment = payments.find((p) => p.reservationId === reservation.id)
+    if (payment) {
+      payment.status = "refunded"
+    }
+
+    localStorage.setItem("havenReservations", JSON.stringify(reservations))
+    localStorage.setItem("havenPayments", JSON.stringify(payments))
+
+    alert("Reservation cancelled successfully!")
+    loadAllReservations()
+  }
+}
+
+function viewReservationDetails(reservationId) {
+  const reservation = reservations.find((r) => r.id === reservationId)
+
+  if (!reservation) {
+    alert("Reservation not found")
+    return
+  }
+
   const modal = document.createElement("div")
   modal.className = "modal"
   modal.id = "reservationListModal"
@@ -1274,50 +2363,45 @@ function showReservationListModal(userReservations) {
     <div class="modal-overlay" onclick="closeModal('reservationListModal')"></div>
     <div class="modal-content large">
       <div class="modal-header">
-        <h2>Select Reservation to Edit</h2>
+        <h2>Reservation Details #${reservation.id}</h2>
         <button class="modal-close" onclick="closeModal('reservationListModal')">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="reservation-list">
-          ${userReservations
-            .map(
-              (reservation) => `
-            <div class="reservation-card" onclick="editSpecificReservation(${reservation.id})">
-              <div class="reservation-header">
-                <span class="reservation-id">Reservation #${reservation.id}</span>
-                <span class="reservation-status ${reservation.status}">${reservation.status.toUpperCase()}</span>
-              </div>
-              <div class="reservation-details">
-                <div class="detail-row">
-                  <span class="detail-label">Date:</span>
-                  <span class="detail-value">${formatDate(reservation.date)}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Time:</span>
-                  <span class="detail-value">${formatTime(reservation.time)}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Table:</span>
-                  <span class="detail-value">${reservation.tableName}</span>
-                </div>
-                ${
-                  reservation.menuItems
-                    ? `
-                  <div class="detail-row">
-                    <span class="detail-label">Menu Items:</span>
-                    <span class="detail-value">${reservation.menuItems.length} items ($${reservation.foodTotal})</span>
-                  </div>
-                `
-                    : ""
-                }
-              </div>
-              <div class="edit-indicator">
-                <span>Click to edit →</span>
-              </div>
-            </div>
-          `,
-            )
-            .join("")}
+        <div class="reservation-details">
+          <div class="detail-row">
+            <span>Customer:</span>
+            <span>${reservation.userName} (${reservation.userEmail})</span>
+          </div>
+          <div class="detail-row">
+            <span>Date & Time:</span>
+            <span>${formatDate(reservation.date)} at ${formatTime(reservation.time)}</span>
+          </div>
+          <div class="detail-row">
+            <span>Table:</span>
+            <span>${reservation.tableName} (${reservation.tableCapacity} seats)</span>
+          </div>
+          <div class="detail-row">
+            <span>Total Amount:</span>
+            <span>$${reservation.totalAmount}</span>
+          </div>
+          <div class="detail-row">
+            <span>Status:</span>
+            <span class="status-badge ${reservation.status}">${reservation.status}</span>
+          </div>
+          <div class="detail-row">
+            <span>Payment Status:</span>
+            <span class="payment-badge ${reservation.paymentStatus}">${reservation.paymentStatus}</span>
+          </div>
+          <div class="detail-row">
+            <span>Special Requests:</span>
+            <span>${reservation.specialRequests || "N/A"}</span>
+          </div>
+          <div class="detail-row">
+            <span>Menu Items:</span>
+            <ul>
+              ${reservation.menuItems.map((item) => `<li>${item.name} ($${item.price})</li>`).join("")}
+            </ul>
+          </div>
         </div>
       </div>
     </div>
@@ -1327,223 +2411,29 @@ function showReservationListModal(userReservations) {
   modal.style.display = "block"
 }
 
-// Show my account information
-function showMyAccount() {
-  if (!currentUser) {
-    alert("Please login to view your account.")
-    showLogin()
-    return
-  }
-
-  const accountInfo = `
-    <h3>Account Information:</h3>
-    <div style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; border: 1px solid #e2e8f0;">
-      <div style="margin-bottom: 0.75rem;"><strong>Name:</strong> ${currentUser.name}</div>
-      <div style="margin-bottom: 0.75rem;"><strong>Email:</strong> ${currentUser.email}</div>
-      <div style="margin-bottom: 0.75rem;"><strong>Phone:</strong> ${currentUser.phone}</div>
-      <div style="margin-bottom: 0.75rem;"><strong>Role:</strong> ${currentUser.role}</div>
-      <div><strong>Member Since:</strong> ${formatDateTime(currentUser.createdAt)}</div>
-    </div>
-  `
-
-  document.getElementById("accountInfo").innerHTML = accountInfo
-  viewReservations() // This will populate the reservations section
-}
-
-// Handle modal clicks (close when clicking outside)
-function handleModalClick(event) {
-  const modals = [
-    "signInModal",
-    "loginModal",
-    "reservationModal",
-    "myAccountModal",
-    "menuSelectionModal",
-    "tableSelectionModal",
-    "paymentModal",
-    "reservationListModal",
-    "editReservationModal",
-    "cancellationModal",
-    "rescheduleModal",
-    "rescheduleDetailsModal",
-  ]
-  modals.forEach((modalId) => {
-    const modal = document.getElementById(modalId)
-    if (modal && event.target === modal) {
-      closeModal(modalId)
-    }
-  })
-}
-
-// Utility functions for formatting
-function formatDate(dateString) {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
-}
-
-function formatTime(timeString) {
-  const [hours, minutes] = timeString.split(":")
-  const date = new Date()
-  date.setHours(Number.parseInt(hours), Number.parseInt(minutes))
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  })
-}
-
-function formatDateTime(dateTimeString) {
-  const date = new Date(dateTimeString)
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  })
-}
-
-// View full image function
-function viewFullImage(imageSrc) {
-  const modal = document.createElement("div")
-  modal.className = "modal"
-  modal.id = "imageViewModal"
-  modal.innerHTML = `
-    <div class="modal-overlay" onclick="closeModal('imageViewModal')"></div>
-    <div class="modal-content large">
-      <div class="modal-header">
-        <h2>Payment Proof</h2>
-        <button class="modal-close" onclick="closeModal('imageViewModal')">&times;</button>
-      </div>
-      <div class="modal-body">
-        <img src="${imageSrc}" alt="Payment Proof" style="width: 100%; height: auto; border-radius: 8px;">
-      </div>
-    </div>
-  `
-
-  document.body.appendChild(modal)
-  modal.style.display = "block"
-}
-
-// Admin cancel reservation
-function adminCancelReservation(reservationId) {
-  if (!confirm("Are you sure you want to cancel this reservation?")) {
-    return
-  }
-
-  const reason = prompt("Please provide a reason for cancellation:")
-  if (!reason) return
-
-  const reservationIndex = reservations.findIndex((r) => r.id === reservationId)
-  if (reservationIndex === -1) {
-    alert("Reservation not found.")
-    return
-  }
-
-  reservations[reservationIndex] = {
-    ...reservations[reservationIndex],
-    status: "cancelled",
-    cancellationReason: reason,
-    cancelledAt: new Date().toISOString(),
-    cancelledBy: currentUser.id,
-  }
-
-  localStorage.setItem("havenReservations", JSON.stringify(reservations))
-  alert("Reservation cancelled successfully.")
-  loadAllReservations()
-}
-
-// View reservation details
-function viewReservationDetails(reservationId) {
+function selectReservationToReschedule(reservationId) {
   const reservation = reservations.find((r) => r.id === reservationId)
-  const user = users.find((u) => u.id === reservation.userId)
-  const payment = payments.find((p) => p.reservationId === reservationId)
 
   if (!reservation) {
-    alert("Reservation not found.")
+    alert("Reservation not found")
     return
   }
 
   const modal = document.createElement("div")
   modal.className = "modal"
-  modal.id = "reservationDetailsModal"
+  modal.id = "rescheduleModal"
   modal.innerHTML = `
-    <div class="modal-overlay" onclick="closeModal('reservationDetailsModal')"></div>
-    <div class="modal-content large">
+    <div class="modal-overlay" onclick="closeModal('rescheduleModal')"></div>
+    <div class="modal-content">
       <div class="modal-header">
-        <h2>Reservation Details #${reservation.id}</h2>
-        <button class="modal-close" onclick="closeModal('reservationDetailsModal')">&times;</button>
+        <h2>Reschedule Reservation #${reservation.id}</h2>
+        <button class="modal-close" onclick="closeModal('rescheduleModal')">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="reservation-full-details">
-          <div class="detail-section">
-            <h4>Customer Information:</h4>
-            <p><strong>Name:</strong> ${user ? user.name : "Unknown"}</p>
-            <p><strong>Email:</strong> ${user ? user.email : "N/A"}</p>
-            <p><strong>Phone:</strong> ${user ? user.phone : "N/A"}</p>
-          </div>
-          
-          <div class="detail-section">
-            <h4>Reservation Information:</h4>
-            <p><strong>Date:</strong> ${formatDate(reservation.date)}</p>
-            <p><strong>Time:</strong> ${formatTime(reservation.time)}</p>
-            <p><strong>Table:</strong> ${reservation.tableName} (${reservation.tableCapacity} seats)</p>
-            <p><strong>Status:</strong> ${reservation.status.toUpperCase()}</p>
-            <p><strong>Payment Status:</strong> ${reservation.paymentStatus.toUpperCase()}</p>
-            <p><strong>Total Amount:</strong> $${reservation.totalAmount}</p>
-          </div>
-          
-          ${
-            reservation.menuItems
-              ? `
-          <div class="detail-section">
-            <h4>Menu Items:</h4>
-            <ul>
-              ${reservation.menuItems.map((item) => `<li>${item.name} - $${item.price}</li>`).join("")}
-            </ul>
-            <p><strong>Food Total:</strong> $${reservation.foodTotal}</p>
-          </div>
-          `
-              : ""
-          }
-          
-          ${
-            reservation.specialRequests
-              ? `
-          <div class="detail-section">
-            <h4>Special Requests:</h4>
-            <p>${reservation.specialRequests}</p>
-          </div>
-          `
-              : ""
-          }
-          
-          ${
-            payment
-              ? `
-          <div class="detail-section">
-            <h4>Payment Information:</h4>
-            <p><strong>Amount:</strong> $${payment.amount}</p>
-            <p><strong>Status:</strong> ${payment.status.toUpperCase()}</p>
-            <p><strong>Created:</strong> ${formatDateTime(payment.createdAt)}</p>
-            ${payment.expiryTime ? `<p><strong>Expires:</strong> ${formatDateTime(payment.expiryTime)}</p>` : ""}
-            ${payment.verifiedAt ? `<p><strong>Verified:</strong> ${formatDateTime(payment.verifiedAt)}</p>` : ""}
-          </div>
-          `
-              : ""
-          }
-          
-          <div class="detail-section">
-            <h4>System Information:</h4>
-            <p><strong>Created:</strong> ${formatDateTime(reservation.createdAt)}</p>
-            ${reservation.rescheduledAt ? `<p><strong>Last Rescheduled:</strong> ${formatDateTime(reservation.rescheduledAt)}</p>` : ""}
-            ${reservation.cancelledAt ? `<p><strong>Cancelled:</strong> ${formatDateTime(reservation.cancelledAt)}</p>` : ""}
-          </div>
+        <p>Are you sure you want to reschedule this reservation?</p>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="showRescheduleDetails(${reservation.id})">Yes, Reschedule</button>
+          <button class="btn btn-secondary" onclick="closeModal('rescheduleModal')">Cancel</button>
         </div>
       </div>
     </div>
@@ -1551,6 +2441,82 @@ function viewReservationDetails(reservationId) {
 
   document.body.appendChild(modal)
   modal.style.display = "block"
+}
+
+function showRescheduleDetails(reservationId) {
+  closeModal("rescheduleModal")
+
+  const reservation = reservations.find((r) => r.id === reservationId)
+
+  if (!reservation) {
+    alert("Reservation not found")
+    return
+  }
+
+  const modal = document.createElement("div")
+  modal.className = "modal"
+  modal.id = "rescheduleDetailsModal"
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal('rescheduleDetailsModal')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Enter New Details for Reservation #${reservation.id}</h2>
+        <button class="modal-close" onclick="closeModal('rescheduleDetailsModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="rescheduleForm">
+          <div class="form-group">
+            <label for="rescheduleDate">New Date:</label>
+            <input type="date" id="rescheduleDate" name="rescheduleDate" min="${new Date().toISOString().split("T")[0]}" required>
+          </div>
+          <div class="form-group">
+            <label for="rescheduleTime">New Time:</label>
+            <input type="time" id="rescheduleTime" name="rescheduleTime" required>
+          </div>
+        </form>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="confirmReschedule(${reservation.id})">Confirm Reschedule</button>
+          <button class="btn btn-secondary" onclick="closeModal('rescheduleDetailsModal')">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(modal)
+  modal.style.display = "block"
+}
+
+function confirmReschedule(reservationId) {
+  const newDate = document.getElementById("rescheduleDate").value
+  const newTime = document.getElementById("rescheduleTime").value
+
+  if (!newDate || !newTime) {
+    alert("Please select both a new date and time.")
+    return
+  }
+
+  const reservation = reservations.find((r) => r.id === reservationId)
+
+  if (!reservation) {
+    alert("Reservation not found")
+    return
+  }
+
+  // Check table availability
+  const isTableAvailable = checkTableAvailability(reservation.tableId, newDate, newTime)
+  if (!isTableAvailable) {
+    alert("Selected table is not available at this time. Please choose a different time or table.")
+    return
+  }
+
+  reservation.date = newDate
+  reservation.time = newTime
+  reservation.status = "confirmed" // Or keep the original status?
+
+  localStorage.setItem("havenReservations", JSON.stringify(reservations))
+  closeModal("rescheduleDetailsModal")
+  alert("Reservation rescheduled successfully!")
+  loadAllReservations()
 }
 
 // Export functions for global access
