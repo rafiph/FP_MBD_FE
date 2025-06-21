@@ -33,6 +33,10 @@
                             <span class="dropdown-icon">✏️</span>
                             Edit Reservation
                         </a>
+                        <a href="#" onclick="rescheduleReservation()" class="dropdown-link">
+                            <span class="dropdown-icon">🔄</span>
+                            Reschedule
+                        </a>
                     </div>
                 </li>
                 <li class="dropdown">
@@ -58,6 +62,8 @@
                 </li>
                 <li><a href="#" onclick="showSection('about')" class="nav-link">About Us</a></li>
                 <li><a href="#" onclick="showSection('menu')" class="nav-link">Menu</a></li>
+                <li><a href="#" onclick="showAdminPanel()" id="adminLink" class="nav-link" style="display: none;">Admin</a></li>
+                <li><a href="#" onclick="showAdminDashboard()" id="dashboardLink" class="nav-link" style="display: none;">Dashboard</a></li>
             </ul>
             <div id="userStatus" class="user-status" style="display: none;"></div>
         </nav>
@@ -251,6 +257,216 @@
                 </div>
             </div>
         </section>
+
+        <!-- Admin Section -->
+        <section id="admin" class="section hidden">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-badge">Administration</span>
+                    <h2 class="section-title">Admin Panel</h2>
+                    <p class="section-description">Manage reservations and payment verifications</p>
+                </div>
+                <div class="admin-content">
+                    <div class="admin-tabs">
+                        <button class="admin-tab-button active" onclick="showAdminTab('payments')">Payment Verification</button>
+                        <button class="admin-tab-button" onclick="showAdminTab('reservations')">All Reservations</button>
+                        <button class="admin-tab-button" onclick="showAdminTab('tables')">Table Management</button>
+                    </div>
+                    
+                    <div id="adminPaymentsTab" class="admin-tab-content active">
+                        <div id="paymentVerificationList"></div>
+                    </div>
+                    
+                    <div id="adminReservationsTab" class="admin-tab-content">
+                        <div id="allReservationsList"></div>
+                    </div>
+                    
+                    <div id="adminTablesTab" class="admin-tab-content">
+                        <div id="tableManagementList"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Admin Dashboard Section -->
+        <section id="adminDashboard" class="section hidden">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-badge">Analytics & Management</span>
+                    <h2 class="section-title">Admin Dashboard</h2>
+                    <p class="section-description">Comprehensive overview and management tools</p>
+                </div>
+                <div class="dashboard-content">
+                    <!-- Dashboard Stats -->
+                    <div class="dashboard-stats">
+                        <div class="stat-card">
+                            <div class="stat-icon">📊</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="totalReservations">0</div>
+                                <div class="stat-label">Total Reservations</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">💰</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="totalRevenue">$0</div>
+                                <div class="stat-label">Total Revenue</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⏳</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="pendingPayments">0</div>
+                                <div class="stat-label">Pending Payments</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="totalCustomers">0</div>
+                                <div class="stat-label">Total Customers</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dashboard Tabs -->
+                    <div class="dashboard-tabs">
+                        <button class="dashboard-tab-button active" onclick="showDashboardTab('overview')">Overview</button>
+                        <button class="dashboard-tab-button" onclick="showDashboardTab('customers')">Customer Management</button>
+                        <button class="dashboard-tab-button" onclick="showDashboardTab('reports')">Reports</button>
+                        <button class="dashboard-tab-button" onclick="showDashboardTab('settings')">Settings</button>
+                    </div>
+
+                    <!-- Overview Tab -->
+                    <div id="dashboardOverviewTab" class="dashboard-tab-content active">
+                        <div class="overview-grid">
+                            <div class="overview-card">
+                                <h4>Recent Reservations</h4>
+                                <div id="recentReservationsList"></div>
+                            </div>
+                            <div class="overview-card">
+                                <h4>Table Occupancy</h4>
+                                <div id="tableOccupancyChart"></div>
+                            </div>
+                            <div class="overview-card">
+                                <h4>Revenue Trends</h4>
+                                <div id="revenueTrendChart"></div>
+                            </div>
+                            <div class="overview-card">
+                                <h4>Quick Actions</h4>
+                                <div class="quick-actions">
+                                    <button class="btn btn-primary" onclick="exportReservations()">Export Reservations</button>
+                                    <button class="btn btn-secondary" onclick="sendBulkNotifications()">Send Notifications</button>
+                                    <button class="btn btn-secondary" onclick="generateReport()">Generate Report</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Customer Management Tab -->
+                    <div id="dashboardCustomersTab" class="dashboard-tab-content">
+                        <div class="customer-management">
+                            <div class="customer-filters">
+                                <input type="text" id="customerSearch" placeholder="Search customers..." class="form-input">
+                                <select id="customerFilter" class="form-input">
+                                    <option value="all">All Customers</option>
+                                    <option value="active">Active</option>
+                                    <option value="vip">VIP</option>
+                                    <option value="new">New</option>
+                                </select>
+                                <button class="btn btn-primary" onclick="filterCustomers()">Filter</button>
+                            </div>
+                            <div id="customersList"></div>
+                        </div>
+                    </div>
+
+                    <!-- Reports Tab -->
+                    <div id="dashboardReportsTab" class="dashboard-tab-content">
+                        <div class="reports-section">
+                            <div class="report-filters">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="reportStartDate">Start Date</label>
+                                        <input type="date" id="reportStartDate" class="form-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="reportEndDate">End Date</label>
+                                        <input type="date" id="reportEndDate" class="form-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="reportType">Report Type</label>
+                                        <select id="reportType" class="form-input">
+                                            <option value="revenue">Revenue Report</option>
+                                            <option value="reservations">Reservations Report</option>
+                                            <option value="customers">Customer Report</option>
+                                            <option value="tables">Table Utilization</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" onclick="generateCustomReport()">Generate Report</button>
+                            </div>
+                            <div id="reportResults"></div>
+                        </div>
+                    </div>
+
+                    <!-- Settings Tab -->
+                    <div id="dashboardSettingsTab" class="dashboard-tab-content">
+                        <div class="settings-section">
+                            <div class="settings-group">
+                                <h4>Restaurant Settings</h4>
+                                <div class="form-group">
+                                    <label for="restaurantName">Restaurant Name</label>
+                                    <input type="text" id="restaurantName" value="Haven Restaurant" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label for="operatingHours">Operating Hours</label>
+                                    <input type="text" id="operatingHours" value="5:00 PM - 11:00 PM" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label for="maxAdvanceBooking">Max Advance Booking (days)</label>
+                                    <input type="number" id="maxAdvanceBooking" value="30" class="form-input">
+                                </div>
+                            </div>
+
+                            <div class="settings-group">
+                                <h4>Payment Settings</h4>
+                                <div class="form-group">
+                                    <label for="paymentTimeout">Payment Timeout (hours)</label>
+                                    <input type="number" id="paymentTimeout" value="2" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cancellationPolicy">Cancellation Policy</label>
+                                    <textarea id="cancellationPolicy" rows="3" class="form-input">Cancellations must be made at least 24 hours in advance for full refund.</textarea>
+                                </div>
+                            </div>
+
+                            <div class="settings-group">
+                                <h4>Notification Settings</h4>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="emailNotifications" checked>
+                                        <span>Email Notifications</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="smsNotifications">
+                                        <span>SMS Notifications</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="autoConfirmation" checked>
+                                        <span>Auto Confirmation</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="settings-actions">
+                                <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+                                <button class="btn btn-secondary" onclick="resetSettings()">Reset to Default</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- Modals -->
@@ -277,6 +493,13 @@
                 <div class="form-group">
                     <label for="signUpPassword">Password</label>
                     <input type="password" id="signUpPassword" required class="form-input">
+                </div>
+                <div class="form-group">
+                    <label for="signUpRole">Account Type</label>
+                    <select id="signUpRole" class="form-input">
+                        <option value="customer">Customer</option>
+                        <option value="admin">Admin</option>
+                    </select>
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">Create Account</button>
@@ -310,11 +533,33 @@
         </div>
     </div>
 
+    <!-- Table Selection Modal -->
+    <div id="tableSelectionModal" class="modal">
+        <div class="modal-overlay" onclick="closeModal('tableSelectionModal')"></div>
+        <div class="modal-content extra-large">
+            <div class="modal-header">
+                <h2>Select Your Table</h2>
+                <p class="modal-subtitle">Choose a table that fits your party size</p>
+                <button class="modal-close" onclick="closeModal('tableSelectionModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="tableSelectionContainer"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('tableSelectionModal')">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="proceedToReservationDetails()" id="proceedToDetailsBtn" disabled>
+                        <span>Continue to Details</span>
+                        <span class="button-arrow">→</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="reservationModal" class="modal">
         <div class="modal-overlay" onclick="closeModal('reservationModal')"></div>
         <div class="modal-content large">
             <div class="modal-header">
-                <h2>Make a Reservation</h2>
+                <h2>Complete Your Reservation</h2>
                 <button class="modal-close" onclick="closeModal('reservationModal')">&times;</button>
             </div>
             <div id="reservationSummary" class="reservation-summary"></div>
@@ -341,25 +586,11 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="partySize">Party Size</label>
-                    <select id="partySize" required class="form-input">
-                        <option value="">Select Party Size</option>
-                        <option value="1">1 Person</option>
-                        <option value="2">2 People</option>
-                        <option value="3">3 People</option>
-                        <option value="4">4 People</option>
-                        <option value="5">5 People</option>
-                        <option value="6">6 People</option>
-                        <option value="7">7 People</option>
-                        <option value="8">8 People</option>
-                    </select>
-                </div>
-                <div class="form-group">
                     <label for="specialRequests">Special Requests</label>
                     <textarea id="specialRequests" rows="3" placeholder="Any dietary restrictions or special occasions?" class="form-input"></textarea>
                 </div>
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Confirm Reservation</button>
+                    <button type="submit" class="btn btn-primary">Create Reservation</button>
                     <button type="button" class="btn btn-secondary" onclick="closeModal('reservationModal')">Cancel</button>
                 </div>
             </form>
@@ -372,7 +603,7 @@
         <div class="modal-content extra-large">
             <div class="modal-header">
                 <h2>Select Your Menu</h2>
-                <p class="modal-subtitle">Choose your dishes before selecting your table time</p>
+                <p class="modal-subtitle">Choose your dishes before selecting your table</p>
                 <button class="modal-close" onclick="closeModal('menuSelectionModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -384,6 +615,47 @@
                         <span class="button-arrow">→</span>
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-overlay" onclick="closeModal('paymentModal')"></div>
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h2>Payment Required</h2>
+                <p class="modal-subtitle">Complete payment to confirm your reservation</p>
+                <button class="modal-close" onclick="closeModal('paymentModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="paymentDetails"></div>
+                <div class="payment-instructions">
+                    <h4>Payment Instructions:</h4>
+                    <ol>
+                        <li>Transfer the minimum charge amount to our bank account</li>
+                        <li>Upload your payment proof below</li>
+                        <li>Wait for admin verification (usually within 1 hour)</li>
+                        <li>You'll receive confirmation once payment is verified</li>
+                    </ol>
+                    <div class="bank-details">
+                        <h5>Bank Details:</h5>
+                        <p><strong>Bank:</strong> Haven Bank</p>
+                        <p><strong>Account:</strong> 1234-5678-9012</p>
+                        <p><strong>Name:</strong> Haven Restaurant</p>
+                    </div>
+                </div>
+                <form id="paymentForm" class="payment-form">
+                    <div class="form-group">
+                        <label for="paymentProof">Upload Payment Proof</label>
+                        <input type="file" id="paymentProof" accept="image/*" required class="form-input">
+                        <small>Accepted formats: JPG, PNG, PDF (Max 5MB)</small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Upload Payment Proof</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('paymentModal')">Cancel</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
