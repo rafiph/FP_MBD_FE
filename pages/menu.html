@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu - Haven Restaurant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <header class="header">
+        <nav class="nav">
+            <a href="../index.html" class="logo">
+                <span class="logo-text">Haven</span>
+                <span class="logo-subtitle">Restaurant</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="../index.html" class="nav-link">Home</a></li>
+                <li class="dropdown">
+                    <a href="#" class="nav-link">Reservation <span class="dropdown-arrow">↓</span></a>
+                    <div class="dropdown-content">
+                        <a href="#" onclick="makeReservation()" class="dropdown-link">
+                            <span class="dropdown-icon">📅</span>
+                            Make Reservation
+                        </a>
+                        <a href="#" onclick="viewReservations()" class="dropdown-link">
+                            <span class="dropdown-icon">📋</span>
+                            Your Reservations
+                        </a>
+                        <a href="#" onclick="editReservation()" class="dropdown-link">
+                            <span class="dropdown-icon">✏️</span>
+                            Edit Reservation
+                        </a>
+                    </div>
+                </li>
+                <li class="dropdown">
+                    <a href="#" class="nav-link">Account <span class="dropdown-arrow">↓</span></a>
+                    <div class="dropdown-content" id="accountDropdown">
+                        <a href="#" onclick="showSignIn()" class="dropdown-link">
+                            <span class="dropdown-icon">👤</span>
+                            Sign Up
+                        </a>
+                        <a href="#" onclick="showLogin()" class="dropdown-link">
+                            <span class="dropdown-icon">🔑</span>
+                            Login
+                        </a>
+                        <a href="#" onclick="showMyAccount()" id="myAccountLink" class="dropdown-link" style="display: none;">
+                            <span class="dropdown-icon">⚙️</span>
+                            My Account
+                        </a>
+                        <a href="#" onclick="logout()" id="logoutLink" class="dropdown-link" style="display: none;">
+                            <span class="dropdown-icon">🚪</span>
+                            Logout
+                        </a>
+                    </div>
+                </li>
+                <li><a href="about.html" class="nav-link">About Us</a></li>
+                <li><a href="menu.html" class="nav-link active">Menu</a></li>
+            </ul>
+            <div id="userStatus" class="user-status" style="display: none;"></div>
+        </nav>
+    </header>
+
+    <main class="main">
+        <section class="section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-badge">Culinary Excellence</span>
+                    <h2 class="section-title">Our Menu</h2>
+                    <p class="section-description">Discover our carefully crafted dishes, each telling a story of flavor and artistry</p>
+                </div>
+                <div class="menu-grid">
+                    <div class="menu-category">
+                        <div class="category-header">
+                            <h3>Appetizers</h3>
+                            <span class="category-icon">🥗</span>
+                        </div>
+                        <div class="menu-items">
+                            <div class="menu-item">
+                                <div class="menu-item-content">
+                                    <div class="menu-item-name">Seared Scallops</div>
+                                    <div class="menu-item-description">Pan-seared scallops with cauliflower purée and pancetta</div>
+                                </div>
+                                <div class="menu-item-price">$18</div>
+                            </div>
+                            <div class="menu-item">
+                                <div class="menu-item-content">
+                                    <div class="menu-item-name">Tuna Tartare</div>
+                                    <div class="menu-item-description">Fresh tuna with avocado, citrus, and sesame</div>
+                                </div>
+                                <div class="menu-item-price">$16</div>
+                            </div>
+                            <div class="menu-item">
+                                <div class="menu-item-content">
+                                    <div class="menu-item-name">Burrata</div>
+                                    <div class="menu-item-description">Creamy burrata with heirloom tomatoes and basil oil</div>
+                                </div>
+                                <div class="menu-item-price">$14</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="menu-category">
+                        <div class="category-header">
+                            <h3>Main Courses</h3>
+                            <span class="category-icon">🥩</span>
+                        </div>
+                        <div class="menu-items">
+                            <div class="menu-item featured">
+                                <div class="menu-item-content">
+                                    <div class="menu-item-name">Wagyu Beef Tenderloin <span class="chef-special">Chef's Special</span></div>
+                                    <div class="menu-item-description">Grilled wagyu with truffle mashed potatoes and red wine jus</div>
+                                </div>
+                                <div class="menu-item-price">$65</div>
+                            </div>
+                            <div class="menu-item">
+                                <div class="menu-item-content">
+                                    <div class="menu-item-name">Atlantic Salmon</div>
+                                    <div class="menu-item-description">Cedar plank salmon with quinoa and seasonal vegetables</div>
+                                </div>
+                                <div class="menu-item-price">$32</div>
+                            </div>
+                            <div class="menu-item">
+                                <div class="menu-item-content">
+                                    <div class="menu-item-name">Duck Confit</div>
+                                    <div class="menu-item-description">Slow-cooked duck leg with cherry gastrique and wild rice</div>
+                                </div>
+                                <div class="menu-item-price">$38</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="menu-category">
+                        <div class="category-header">
+                            <h3>Desserts</h3>
+                            <span class="category-icon">🍰</span>
+                        </div>
+                        <div class="menu-items">
+                            <div class="menu-item">
+                                <div class="menu-item-content">
+                                    <div class="menu-item-name">Chocolate Soufflé</div>
+                                    <div class="menu-item-description">Warm chocolate soufflé with vanilla bean ice cream</div>
+                                </div>
+                                <div class="menu-item-price">$12</div>
+                            </div>
+                            <div class="menu-item">
+                                <div class="menu-item-content">
+                                    <div class="menu-item-name">Crème Brûlée</div>
+                                    <div class="menu-item-description">Classic vanilla crème brûlée with fresh berries</div>
+                                </div>
+                                <div class="menu-item-price">$10</div>
+                            </div>
+                            <div class="menu-item">
+                                <div class="menu-item-content">
+                                    <div class="menu-item-name">Tiramisu</div>
+                                    <div class="menu-item-description">House-made tiramisu with espresso and mascarpone</div>
+                                </div>
+                                <div class="menu-item-price">$11</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Include all modals -->
+    <!-- Modals are copied from index.html -->
+    <div id="signInModal" class="modal">
+        <!-- Modal content same as index.html -->
+    </div>
+
+    <div id="loginModal" class="modal">
+        <!-- Modal content same as index.html -->
+    </div>
+
+    <div id="reservationModal" class="modal">
+        <!-- Modal content same as index.html -->
+    </div>
+
+    <div id="menuSelectionModal" class="modal">
+        <!-- Modal content same as index.html -->
+    </div>
+
+    <div id="myAccountModal" class="modal">
+        <!-- Modal content same as index.html -->
+    </div>
+
+    <script src="js/common.js"></script>
+    <script src="js/reservation.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>

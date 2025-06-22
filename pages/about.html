@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Us - Haven Restaurant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+    <header class="header">
+        <nav class="nav">
+            <a href="../index.html" class="logo">
+                <span class="logo-text">Haven</span>
+                <span class="logo-subtitle">Restaurant</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="../index.html" class="nav-link">Home</a></li>
+                <li class="dropdown">
+                    <a href="#" class="nav-link">Reservation <span class="dropdown-arrow">↓</span></a>
+                    <div class="dropdown-content">
+                        <a href="#" onclick="makeReservation()" class="dropdown-link">
+                            <span class="dropdown-icon">📅</span>
+                            Make Reservation
+                        </a>
+                        <a href="#" onclick="viewReservations()" class="dropdown-link">
+                            <span class="dropdown-icon">📋</span>
+                            Your Reservations
+                        </a>
+                        <a href="#" onclick="editReservation()" class="dropdown-link">
+                            <span class="dropdown-icon">✏️</span>
+                            Edit Reservation
+                        </a>
+                    </div>
+                </li>
+                <li class="dropdown">
+                    <a href="#" class="nav-link">Account <span class="dropdown-arrow">↓</span></a>
+                    <div class="dropdown-content" id="accountDropdown">
+                        <a href="#" onclick="showSignIn()" class="dropdown-link">
+                            <span class="dropdown-icon">👤</span>
+                            Sign Up
+                        </a>
+                        <a href="#" onclick="showLogin()" class="dropdown-link">
+                            <span class="dropdown-icon">🔑</span>
+                            Login
+                        </a>
+                        <a href="#" onclick="showMyAccount()" id="myAccountLink" class="dropdown-link" style="display: none;">
+                            <span class="dropdown-icon">⚙️</span>
+                            My Account
+                        </a>
+                        <a href="#" onclick="logout()" id="logoutLink" class="dropdown-link" style="display: none;">
+                            <span class="dropdown-icon">🚪</span>
+                            Logout
+                        </a>
+                    </div>
+                </li>
+                <li><a href="about.html" class="nav-link active">About Us</a></li>
+                <li><a href="menu.html" class="nav-link">Menu</a></li>
+            </ul>
+            <div id="userStatus" class="user-status" style="display: none;"></div>
+        </nav>
+    </header>
+
+    <main class="main">
+        <section class="section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-badge">Our Story</span>
+                    <h2 class="section-title">About Haven</h2>
+                </div>
+                <div class="about-content">
+                    <div class="about-text">
+                        <div class="about-stats">
+                            <div class="stat">
+                                <div class="stat-number">13</div>
+                                <div class="stat-label">Years of Excellence</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-number">50K+</div>
+                                <div class="stat-label">Happy Guests</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-number">15</div>
+                                <div class="stat-label">Awards Won</div>
+                            </div>
+                        </div>
+                        <p class="about-paragraph">Haven Restaurant has been a cornerstone of fine dining since 2010. Our commitment to culinary excellence and exceptional service has made us a beloved destination for food enthusiasts and special occasions alike.</p>
+                        <p class="about-paragraph">Our head chef, with over 20 years of experience in Michelin-starred restaurants, leads a talented team dedicated to creating memorable dining experiences. We source our ingredients from local farms and artisanal producers, ensuring every dish reflects our commitment to quality and sustainability.</p>
+                        <p class="about-paragraph">Whether you're celebrating a special milestone or simply seeking an extraordinary meal, Haven provides the perfect setting for unforgettable moments.</p>
+                    </div>
+                    <div class="about-image">
+                        <div class="image-placeholder">
+                            <span>🏛️</span>
+                            <p>Restaurant Interior</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Include all modals -->
+    <!-- Modals are copied from index.html -->
+    <div id="signInModal" class="modal">
+        <!-- Modal content same as index.html -->
+    </div>
+
+    <div id="loginModal" class="modal">
+        <!-- Modal content same as index.html -->
+    </div>
+
+    <div id="reservationModal" class="modal">
+        <!-- Modal content same as index.html -->
+    </div>
+
+    <div id="menuSelectionModal" class="modal">
+        <!-- Modal content same as index.html -->
+    </div>
+
+    <div id="myAccountModal" class="modal">
+        <!-- Modal content same as index.html -->
+    </div>
+
+    <script src="js/common.js"></script>
+    <script src="js/reservation.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>
